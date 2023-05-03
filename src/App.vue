@@ -1,26 +1,77 @@
-<template>
-  <div class="row q-col-gutter-lg">
-    <div v-for="m in members" :key="m" class="col-6 col-md-4">
-      <Member :mid="m.mid" :name="m.name" :team="m.team" :contact="m.contact" />
-    </div>
-  </div>
-</template>
+<!-- App.vue -->
 
-<script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import Member from './components/Member.vue'
-import { reactive } from 'vue'
-import { uid } from 'quasar'
+<script setup>
+import { reactive, defineAsyncComponent } from 'vue'
+import { uid, useQuasar } from 'quasar'
 
-const members = reactive([
-  { mid: uid(), name: '홍길동', team: '디자인 팀', contact: '010-0000-0000' },
-  { mid: uid(), name: '뷔', team: '엔터테인먼트 팀', contact: '010-1111-1111' },
-  { mid: uid(), name: '아이유', team: '가수 팀', contact: '010-2222-2222' }
-])
+// $q 객체
+const $q = useQuasar()
+
+// 멤버 데이터 초기값을 세션 스토리지에서 가져옵니다.
+const members = reactive($q.sessionStorage.getItem('members') || [])
+
+// Member 컴포넌트를 가져옵니다.
+const Member = defineAsyncComponent(() => import('./components/Member.vue'))
+
+// Member를 추가하는 메서드
+const addMember = () => {
+  members.unshift({ mid: uid(), name: '', team: '', contact: '' })
+}
+
+// Member 정보를 수정하는 메서드
+const upsert = (data, done) => {
+  const findMember = members.find((m) => m.mid === data.mid)
+  const storageMembers = $q.sessionStorage.getItem('members') || []
+  const findStorageMember = storageMembers.find((m) => m.mid === data.mid)
+
+  if (findMember) {
+    findMember.name = data.name
+    findMember.team = data.team
+    findMember.contact = data.contact
+
+    if (findStorageMember) {
+      findStorageMember.name = data.name
+      findStorageMember.team = data.team
+      findStorageMember.contact = data.contact
+    } else storageMembers.unshift(findMember)
+  }
+
+  $q.sessionStorage.set('members', storageMembers)
+
+  done()
+}
+
+// Member 정보를 제거하는 메서드
+const remove = (mid) => {
+  const findIndex = members.findIndex((m) => m.mid === mid)
+  const storageMembers = $q.sessionStorage.getItem('members') || []
+  const findStorageIndex = storageMembers.findIndex((m) => m.mid === mid)
+
+  if (findIndex !== -1) {
+    members.splice(findIndex, 1)
+
+    if (findStorageIndex !== -1) storageMembers.splice(findStorageIndex, 1)
+  }
+
+  $q.sessionStorage.set('members', storageMembers)
+}
 </script>
 
-<style scoped>
-q-card-section {
-  height: 500px;
-}
-</style>
+<template>
+  <div>
+    <div class="row justify-end q-pb-sm">
+      <q-btn dense icon="add" round color="positive" @click="addMember" />
+    </div>
+    <div class="row q-col-gutter-lg">
+      <div v-for="m in members" :key="m" class="col-6 col-md-4">
+        <Member :data="m" @upsert="upsert" @remove="remove" />
+      </div>
+    </div>
+    <Info>
+      <p><b>Member 데이터</b></p>
+      <p>
+        {{ members }}
+      </p>
+    </Info>
+  </div>
+</template>
